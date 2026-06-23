@@ -13,7 +13,10 @@ shows that **the integration step index is an implicit regularization path** —
 risk dips then rises along the trajectory — and that a small network, unrolled
 through the differentiable solver, can learn a deployable stopping rule. It also
 asks the honest question most write-ups skip: **does any of this beat closed-form
-shrinkage?** The answer is *regime-dependent*, and the repo says so plainly.
+shrinkage?** Against *linear* shrinkage the answer is regime-dependent; against the
+*best possible* shrinkage it is **no, on minimum-variance** — and the repo shows
+exactly why (the GMV trajectory is a spectral filter, so shrinkage dominates it),
+which is precisely what redirects the work to a non-quadratic (CVaR) objective.
 
 > Context: an exploratory pilot for a PhD project on ill-posed portfolio
 > optimization (damped dynamical systems + singular-covariance estimation
@@ -135,16 +138,50 @@ regime.**
 | Learned gate beats Ledoit–Wolf? | no (redundant) | yes |
 
 On strong factors, Ledoit–Wolf nearly saturates the oracle frontier and the gate
-is redundant. On weak factors / very small samples, shrinkage leaves real headroom
-and the gate beats it. Real equity returns are typically strongly factor-driven,
-so the regime that favours closed-form shrinkage is arguably the more
-representative one.
+is redundant. On weak factors / very small samples, *linear* shrinkage leaves real
+headroom and the gate beats it. But linear Ledoit–Wolf is a crude, one-dial
+filter — so the natural follow-up is whether a stronger *nonlinear* shrinkage
+would close even that gap. Result 4 settles it.
 
-**Conclusion (stated honestly):** on the minimum-variance objective, closed-form
-shrinkage is the benchmark to beat, and it is only beatable in a corner. The
-genuinely promising direction is an objective where *no closed-form shrinkage
-analogue exists* — Conditional Value-at-Risk under heavy-tailed / skewed returns,
-where the DFPM regularization path has no cheap competitor.
+---
+
+## Result 4 — the de-risking test: could nonlinear shrinkage close the gap?
+
+Rather than implement (and risk mis-implementing) analytical nonlinear shrinkage,
+we compute the exact **shrinkage ceiling**: the lowest true-GMV variance achievable
+by *any* rotation-equivariant shrinkage estimator — linear, nonlinear, realizable,
+or oracle — because every such estimator is `U diag(d) Uᵀ` with the sample
+eigenvectors `U` and some `d > 0`. That is a small convex QP, and it upper-bounds
+**all** shrinkage methods at once.
+
+![crossover](figures/crossover.png)
+
+Sweeping factor strength × concentration `c = N/T` (crossing into the singular
+`p > N` regime), the picture is the same everywhere:
+
+| | regret over true GMV (range across the sweep) |
+|---|---|
+| Shrinkage ceiling (best possible NLS) | **1.01 – 1.02×** (essentially optimal) |
+| DFPM best stop (oracle bound) | 1.10 – 1.20× |
+| Linear Ledoit–Wolf (deployable) | 1.23 – 1.49× |
+
+**The verdict, stated plainly:** the shrinkage ceiling sits ~1–2% above the true
+optimum in *every* regime, and it is **below DFPM's best possible stop everywhere**.
+DFPM beats *linear* Ledoit–Wolf only because linear LW is a crude filter that
+leaves 25–50% on the table; a nonlinear shrinkage that reaches its ceiling would
+overtake DFPM on GMV in all regimes tested.
+
+There is a clean reason. For the quadratic GMV objective the DFPM trajectory is
+itself a **spectral filter** of `Σ̂` (early stopping ≈ ridge ≈ a one-parameter
+filter family), while shrinkage optimizes the filter freely — so shrinkage *cannot*
+be beaten by DFPM on GMV, even in principle. **This kills the GMV branch as a
+contribution and rigorously redirects the work to a non-quadratic objective**
+(CVaR), where the spectral-filter equivalence breaks and the regularization path
+can express portfolios no covariance-shrinkage can.
+
+> This is a deliberately self-critical result. The point of the pilot was to
+> *locate* where the method has a defensible edge — and to rule out where it does
+> not. On minimum-variance, it does not.
 
 ---
 
@@ -152,7 +189,7 @@ where the DFPM regularization path has no cheap competitor.
 
 - **Oracle baselines are bounds, not methods** — they use `Σ_true` to measure regret.
 - **Path-averaging, not pinpoint stopping** — the soft portfolio beats hard stopping; the gate does not sharply recover the oracle stop.
-- **Closed-form shrinkage is the real, regime-bound benchmark** (Result 3); the favourable Result-2 numbers are one regime, not a general claim.
+- **On GMV, optimal shrinkage dominates DFPM** (Result 4) — the favourable Result-2/3 numbers are wins over *linear* shrinkage only; the best possible shrinkage beats DFPM's best stop in every regime tested. The defensible value of the method is therefore *not* on minimum-variance.
 - **Step size is conservative** — we integrate at `Δt = 0.25/λ_max`, well inside the `Δt < 2/√λ_max` stability bound, so iteration *indices* here are larger than the canonical `1/√λ` convention. Conclusions are unaffected.
 - **Simulated data, one heavy-tail family (Student-t)** — any simulator-trained rule inherits simulator bias; the honest test is out-of-distribution on real returns.
 
@@ -160,7 +197,7 @@ where the DFPM regularization path has no cheap competitor.
 
 ## Where this points
 
-1. **CVaR under tempered-stable (NTS) returns** — smoothed Rockafellar–Uryasev CVaR solved jointly on `(w, α)` by DFPM, under genuinely skewed heavy tails. No closed-form shrinkage exists here, so the regularization path has no cheap competitor. *(Primary direction.)*
+1. **CVaR under tempered-stable (NTS) returns** — smoothed Rockafellar–Uryasev CVaR solved jointly on `(w, α)` by DFPM, under genuinely skewed heavy tails. The CVaR objective is *not quadratic in `w`*, so the spectral-filter equivalence that lets shrinkage dominate on GMV (Result 4) **breaks** — the DFPM path can express portfolios no covariance-shrinkage can, and no closed-form shrinkage analogue exists. *(Primary direction, and now rigorously motivated rather than a hunch.)*
 2. **An estimation-theoretic stopping rule** — relate the optimal stop to an effective-rank / signal-to-noise quantity from singular-Wishart portfolio-weight theory, for a principled rather than black-box rule.
 3. **Full unrolling** — make `η` and `Δt` learnable too, not just the stopping gate.
 
@@ -175,6 +212,7 @@ src/
   exp1_semiconvergence.py      # Result 1: semiconvergence + reference portfolios + figure
   exp2_learned_stopping.py     # Result 2: train the gate, evaluate, gate-vs-oracle scatter
   exp3_ledoitwolf_regimes.py   # Result 3: Ledoit-Wolf regime comparison + figure
+  exp4_crossover.py            # Result 4: shrinkage-ceiling crossover sweep + figure
   make_flowchart.py            # renders the methodology flowchart
 figures/                       # generated figures (committed)
 results/                       # generated CSVs (committed)
@@ -188,6 +226,7 @@ pip install -r requirements.txt
 python src/exp1_semiconvergence.py      # semiconvergence figure + trajectory CSV
 python src/exp2_learned_stopping.py     # train gate, evaluate, scatter (uses PyTorch)
 python src/exp3_ledoitwolf_regimes.py   # regime-dependence comparison + figure
+python src/exp4_crossover.py            # shrinkage-ceiling crossover sweep + figure
 python src/make_flowchart.py            # regenerate the pipeline flowchart
 ```
 
