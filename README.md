@@ -14,11 +14,11 @@ risk dips then rises along the trajectory — and that a small network, unrolled
 through the differentiable solver, can learn a deployable stopping rule. It also
 asks the honest question most write-ups skip: **does any of this beat closed-form
 shrinkage?** Against the *best possible* shrinkage the answer is **no on
-minimum-variance** — the GMV trajectory is a spectral filter, so shrinkage dominates
-it (Result 4). But that same argument predicts an edge on a *non-quadratic*
-objective, and Result 5 confirms it: on **CVaR under skew**, early-stopped
-CVaR-DFPM beats variance-based shrinkage by ~17% out-of-sample, where no closed-form
-shrinkage analogue exists.
+minimum-variance** — empirically, the best shrinkage beats DFPM's best stop in every
+regime tested (Result 4), since both only filter the same noisy sample covariance.
+But that picture predicts an edge on a *non-quadratic* objective, and Result 5
+confirms it: on **CVaR under skew**, early-stopped CVaR-DFPM beats variance-based
+shrinkage by ~17% out-of-sample, where no closed-form shrinkage analogue exists.
 
 > Context: an exploratory pilot for a PhD project on ill-posed portfolio
 > optimization (damped dynamical systems + singular-covariance estimation
@@ -173,13 +173,18 @@ DFPM beats *linear* Ledoit–Wolf only because linear LW is a crude filter that
 leaves 25–50% on the table; a nonlinear shrinkage that reaches its ceiling would
 overtake DFPM on GMV in all regimes tested.
 
-There is a clean reason. For the quadratic GMV objective the DFPM trajectory is
-itself a **spectral filter** of `Σ̂` (early stopping ≈ ridge ≈ a one-parameter
-filter family), while shrinkage optimizes the filter freely — so shrinkage *cannot*
-be beaten by DFPM on GMV, even in principle. **This kills the GMV branch as a
-contribution and rigorously redirects the work to a non-quadratic objective**
-(CVaR), where the spectral-filter equivalence breaks and the regularization path
-can express portfolios no covariance-shrinkage can.
+The intuition for *why*: on the quadratic GMV objective both methods extract a
+portfolio from the **same** noisy sample covariance `Σ̂` — DFPM's trajectory is a
+spectral filter of `Σ̂` (early stopping ≈ ridge ≈ a one-parameter filter family),
+and shrinkage optimizes its own filter freely. (This is an intuition, not a
+theorem: DFPM's filter lives in the `PΣ̂P` eigenbasis rather than `Σ̂`'s, so it is
+not literally a member of the rotation-equivariant shrinkage family the ceiling
+bounds — the dominance above is a strong *empirical* regularity across every
+regime tested, not a proof.) Either way the practical conclusion stands: **on GMV
+there is no room for the trajectory approach to add value over good covariance
+estimation**, which redirects the work to a non-quadratic objective (CVaR), where
+that picture breaks and the regularization path can express portfolios no
+covariance-shrinkage can.
 
 > This is a deliberately self-critical result. The point of the pilot was to
 > *locate* where the method has a defensible edge — and to rule out where it does
@@ -209,8 +214,9 @@ Three things land, all consistent with the theory:
   shrinkage to within 1%: with no skew, the CVaR solution *is* the variance solution.
 - **Payoff ✅** — under skew, early-stopped CVaR-DFPM beats Ledoit–Wolf GMV by
   **~17% out-of-sample on CVaR**. Variance-based shrinkage cannot see downside
-  asymmetry; the regularization path can. This is the gap Result 4 said should
-  exist where the spectral-filter equivalence breaks — and it does.
+  asymmetry; the regularization path can. This is the gap Result 4 pointed to — on
+  a non-quadratic objective the GMV spectral-filter picture no longer applies — and
+  it shows up exactly as predicted.
 - **Early stopping is essential ✅** — best-stop beats the converged solution, and
   in the data-starved small-sample regime (`T < N`, ~3 tail scenarios) the
   converged CVaR portfolio *blows up* (OOS CVaR ≈ 15) while the early stop stays
